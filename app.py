@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import yt_dlp
 import os
 
@@ -14,7 +14,6 @@ def download_video(url, output_format, quality='192'):
     options = {
         'format': 'bestvideo+bestaudio/best' if output_format == 'mp4' else 'bestaudio/best',
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        'cookiefile': 'cookies.txt',  # Path to the cookies file
     }
 
     if output_format == 'mp3':
@@ -22,35 +21,19 @@ def download_video(url, output_format, quality='192'):
             {
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
-                'preferredquality': quality,  # Accept user-defined quality
+                'preferredquality': quality,
             }
         ]
 
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
+            file_path = ydl.prepare_filename(info).replace(" ", "_")
             if output_format == 'mp3':
                 file_path = file_path.replace('.webm', '.mp3').replace('.m4a', '.mp3')
             return file_path
     except Exception as e:
         return str(e)
-
-
-@app.route('/api/download/mp4', methods=['POST'])
-def download_mp4():
-    """API endpoint to download YouTube video as MP4."""
-    data = request.json
-    url = data.get('url')
-
-    if not url:
-        return jsonify({"error": "You must provide a YouTube URL."}), 400
-
-    file_path = download_video(url, 'mp4')
-    if os.path.exists(file_path):
-        return jsonify({"message": "Download complete", "file_path": file_path})
-    else:
-        return jsonify({"error": "Download failed", "details": file_path}), 500
 
 
 @app.route('/api/download/mp3', methods=['POST'])
@@ -65,9 +48,21 @@ def download_mp3():
 
     file_path = download_video(url, 'mp3', quality)
     if os.path.exists(file_path):
-        return jsonify({"message": "Download complete", "file_path": file_path})
+        # Return a direct download link
+        download_url = f"/download/{os.path.basename(file_path)}"
+        return jsonify({"message": "Download complete", "file_path": file_path, "download_url": download_url})
     else:
         return jsonify({"error": "Download failed", "details": file_path}), 500
+
+
+@app.route('/download/<filename>', methods=['GET'])
+def serve_file(filename):
+    """Serve the downloaded file for direct download."""
+    file_path = os.path.join(DOWNLOAD_FOLDER, filename)
+    if os.path.exists(file_path):
+        return send_file(file_path, as_attachment=True)
+    else:
+        return jsonify({"error": "File not found"}), 404
 
 
 if __name__ == '__main__':
