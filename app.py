@@ -14,6 +14,7 @@ def download_video(url, output_format, quality='192'):
     options = {
         'format': 'bestvideo+bestaudio/best' if output_format == 'mp4' else 'bestaudio/best',
         'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
+        'cookiefile': 'cookies.txt',
     }
 
     if output_format == 'mp3':
